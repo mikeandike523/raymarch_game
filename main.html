@@ -1,0 +1,211 @@
+<!doctype html>
+<html>
+   <body>
+      <canvas width = "570" height = "570" id = "my_Canvas"></canvas>
+
+      <script>
+         //todo: make scene sdf and shading function able to be entered via a textbox
+         //todo: find out what idea you really want to do
+         
+         /*============= Creating a canvas =================*/
+         var canvas = document.getElementById('my_Canvas');
+         gl = canvas.getContext('experimental-webgl');
+
+         /*============ Defining and storing the geometry =========*/
+
+         var vertices = [
+            -1,-1,-1, 1,-1,-1, 1, 1,-1, -1, 1,-1,
+           
+         ];
+
+         var indices = [
+            0,1,2, 0,2,3, 4,5,6, 4,6,7,
+   
+         ];
+
+         // Create and store data into vertex buffer
+         var vertex_buffer = gl.createBuffer ();
+         gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
+         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+         // Create and store data into index buffer
+         var index_buffer = gl.createBuffer ();
+         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
+         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+
+         /*=================== Shaders =========================*/
+
+         var vertCode = `attribute vec3 position;
+            uniform mat4 Pmatrix;
+            uniform mat4 Vmatrix;
+            uniform mat4 Mmatrix;
+         
+            varying vec2 uv;
+            void main(void) { 
+               gl_Position = Pmatrix*Vmatrix*Mmatrix*vec4(position, 1.);
+               uv=position.xy;
+            }`;
+
+         var fragCode = `precision mediump float;
+            varying vec3 vColor;
+            varying vec2 uv;
+            const float MARCH_DRAWDIST=100.;
+            const int MAX_ITERS=50;
+            const float epsilon=0.005;
+            const float normal_epsilon=0.000005;
+            float sceneDistance(vec3 p){
+               return length(p-vec3(0.0,0.0,1.0))-0.4;
+            }
+            float march(vec3 ro, vec3 rd){
+               vec3 p=ro;
+               float lastDist=sceneDistance(ro);
+               for(int i=0;i<MAX_ITERS;i++){
+                  if(length(p-ro)>MARCH_DRAWDIST)
+                     break;
+                  p=ro+rd*lastDist;
+                  float currentDist=sceneDistance(p);
+                  if(currentDist<epsilon){
+                     return length(p-ro);
+                  }
+                  lastDist+=currentDist;
+               }
+               return -1.;
+            }
+            vec3 getColor(vec3 ro, vec3 rd, vec3 pt, vec3 n){
+               return n;
+            }
+
+            // note, camera movement will require coordinate transformations
+            // this algorithm is from centered camera
+            vec3 getNormal(vec3 ro,vec3 rd){
+               float dist1=march(ro,rd);
+
+               //to the right on screen
+               vec3 rd2=vec3(rd.x+normal_epsilon,rd.y,rd.z);
+               float dist2=march(ro,rd2);
+
+               //upward on screen
+               vec3 rd3=vec3(rd.x,rd.y+normal_epsilon,rd.z);
+               float dist3=march(ro,rd3);
+               
+               if(dist1<0.0 || dist2<0.0 || dist3<0.0){
+                  //in case any rays miss or fall through, set normal to 0
+                  //todo, determine experimentally if this is the best approach
+                  return vec3(1.0,0.0,0.0);
+               }
+               
+               //all rays did not fall through
+               vec3 pt1=ro+rd*dist1;
+               vec3 pt2=ro+rd2*dist2;
+               vec3 pt3=ro+rd3*dist3;
+
+               vec3 d1=pt2-pt1;
+               vec3 d2=pt3-pt1;
+               return -1.*normalize(cross(d1,d2));
+
+            }
+            void main(void) {
+               vec3 ro=vec3(0.,0.,0);
+               vec3 rd= normalize(vec3(uv.x,uv.y,1.));
+               float dist=march(ro,rd);
+               vec3 pt=rd+dist*rd;
+               if (dist<0.0)
+               {
+                  discard;
+               }
+               else
+               {
+                  vec3 n=getNormal(ro,rd);
+                  gl_FragColor=vec4(getColor(ro,rd,pt,n),1.0);
+               }
+            }`;
+
+         var vertShader = gl.createShader(gl.VERTEX_SHADER);
+         gl.shaderSource(vertShader, vertCode);
+         gl.compileShader(vertShader);
+
+         var fragShader = gl.createShader(gl.FRAGMENT_SHADER);
+         gl.shaderSource(fragShader, fragCode);
+         gl.compileShader(fragShader);
+
+         var shaderProgram = gl.createProgram();
+         gl.attachShader(shaderProgram, vertShader);
+         gl.attachShader(shaderProgram, fragShader);
+         gl.linkProgram(shaderProgram);
+
+         var compiled = gl.getShaderParameter(vertShader, gl.COMPILE_STATUS);
+         console.log('Shader compiled successfully: ' + compiled);
+         var compilationLog = gl.getShaderInfoLog(vertShader);
+         console.log('Shader compiler log: ' + compilationLog);
+
+         var compiled = gl.getShaderParameter(fragShader, gl.COMPILE_STATUS);
+         console.log('Shader compiled successfully: ' + compiled);
+         var compilationLog = gl.getShaderInfoLog(fragShader);
+         console.log('Shader compiler log: ' + compilationLog);
+
+         /* ====== Associating attributes to vertex shader =====*/
+         var Pmatrix = gl.getUniformLocation(shaderProgram, "Pmatrix");
+         var Vmatrix = gl.getUniformLocation(shaderProgram, "Vmatrix");
+         var Mmatrix = gl.getUniformLocation(shaderProgram, "Mmatrix");
+
+         gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
+         var position = gl.getAttribLocation(shaderProgram, "position");
+         gl.vertexAttribPointer(position, 3, gl.FLOAT, false,0,0) ;
+
+         // Position
+         gl.enableVertexAttribArray(position);
+   
+
+    
+         gl.useProgram(shaderProgram);
+
+         /*==================== MATRIX =====================*/
+
+         function get_projection(angle, a, zMin, zMax) {
+            var ang = Math.tan((angle*.5)*Math.PI/180);//angle*.5
+            return [
+               0.5/ang, 0 , 0, 0,
+               0, 0.5*a/ang, 0, 0,
+               0, 0, -(zMax+zMin)/(zMax-zMin), -1,
+               0, 0, (-2*zMax*zMin)/(zMax-zMin), 0 
+            ];
+         }
+
+         var proj_matrix =[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+
+         var mov_matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+         var view_matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+
+       
+
+         /*==================== Rotation ====================*/
+
+         
+
+         /*================= Drawing ===========================*/
+         var time_old = 0;
+
+         
+         gl.clearColor(0,0,0,1);
+         var animate = function(time) {
+
+            var dt = time-time_old;
+
+            time_old = time;
+
+        
+            
+            gl.viewport(0.0, 0.0, canvas.width, canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.uniformMatrix4fv(Pmatrix, false, proj_matrix);
+            gl.uniformMatrix4fv(Vmatrix, false, view_matrix);
+            gl.uniformMatrix4fv(Mmatrix, false, mov_matrix);
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
+            gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+
+            window.requestAnimationFrame(animate);
+         }
+         animate(0);
+      </script>
+   </body>
+</html>
