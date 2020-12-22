@@ -1,8 +1,19 @@
 <!doctype html>
 <html>
-   <body>
-      <canvas width = "570" height = "570" id = "my_Canvas"></canvas>
-
+   <body style="width:100%;height:100%;border:none;padding:none">
+      <style>
+        canvas {
+    position: absolute;
+    top:0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin:auto;
+}
+}
+      </style>
+      <canvas width = "600" height = "600" id = "my_Canvas"></canvas>
+        <script src="scene.js"></script>
       <script>
          //todo: make scene sdf and shading function able to be entered via a textbox
          //todo: find out what idea you really want to do
@@ -10,6 +21,50 @@
          /*============= Creating a canvas =================*/
          var canvas = document.getElementById('my_Canvas');
          gl = canvas.getContext('experimental-webgl');
+         canvas.onclick = function() {
+  canvas.requestPointerLock();
+}
+
+var cP=[0,0,0];
+         var cE=[Math.PI/2,0];
+function canvasLoop(e) {
+  var movementX = e.movementX ||
+      e.mozMovementX          ||
+      e.webkitMovementX       ||
+      0;
+
+  var movementY = e.movementY ||
+      e.mozMovementY      ||
+      e.webkitMovementY   ||
+      0;
+
+      cE[0]-=movementX*Math.PI/60;
+      if(Math.abs(cE[1]-movementY*Math.PI/60)<Math.PI/2*1.0)
+      cE[1]-=movementY*Math.PI/60;
+
+
+}
+function lockChangeAlert() {
+  if(document.pointerLockElement === canvas) {
+    console.log('The pointer lock status is now locked');
+    document.addEventListener("mousemove", canvasLoop, false);
+  } else {
+    console.log('The pointer lock status is now unlocked');  
+    document.removeEventListener("mousemove", canvasLoop, false);
+  }
+}
+document.addEventListener('pointerlockchange', lockChangeAlert, false);
+         var up = false,
+    right = false,
+    down = false,
+    left = false;
+    var turnLeft=false;
+    var turnRight=false;
+    var lookUp=false;
+    var lookDown=false;
+    var rising=false;
+    var falling=false;
+    var towards=false;
 
          /*============ Defining and storing the geometry =========*/
 
@@ -53,9 +108,16 @@
             const int MAX_ITERS=50;
             const float epsilon=0.005;
             const float normal_epsilon=0.000005;
+            uniform vec3 cameraPos;
+            uniform mat3 cameraEuler;
+            uniform mat3 cameraEuler2;
+            
             float sceneDistance(vec3 p){
-               return length(p-vec3(0.0,0.0,1.0))-0.4;
+            `
+               +sceneDistanceScript+
+             `  
             }
+            
             float march(vec3 ro, vec3 rd){
                vec3 p=ro;
                float lastDist=sceneDistance(ro);
@@ -72,7 +134,8 @@
                return -1.;
             }
             vec3 getColor(vec3 ro, vec3 rd, vec3 pt, vec3 n){
-               return n;
+               `+shadingScript+
+               `
             }
 
             // note, camera movement will require coordinate transformations
@@ -105,8 +168,8 @@
 
             }
             void main(void) {
-               vec3 ro=vec3(0.,0.,0);
-               vec3 rd= normalize(vec3(uv.x,uv.y,1.));
+               vec3 ro=cameraPos;
+               vec3 rd= cameraEuler*cameraEuler2*normalize(vec3(uv.x,uv.y,1.));
                float dist=march(ro,rd);
                vec3 pt=rd+dist*rd;
                if (dist<0.0)
@@ -159,17 +222,13 @@
     
          gl.useProgram(shaderProgram);
 
+
+         var cameraPos=gl.getUniformLocation(shaderProgram,'cameraPos');
+         var cameraEuler=gl.getUniformLocation(shaderProgram,'cameraEuler');
+         var cameraEuler2=gl.getUniformLocation(shaderProgram,'cameraEuler2');
+        
          /*==================== MATRIX =====================*/
 
-         function get_projection(angle, a, zMin, zMax) {
-            var ang = Math.tan((angle*.5)*Math.PI/180);//angle*.5
-            return [
-               0.5/ang, 0 , 0, 0,
-               0, 0.5*a/ang, 0, 0,
-               0, 0, -(zMax+zMin)/(zMax-zMin), -1,
-               0, 0, (-2*zMax*zMin)/(zMax-zMin), 0 
-            ];
-         }
 
          var proj_matrix =[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
 
@@ -192,20 +251,178 @@
             var dt = time-time_old;
 
             time_old = time;
+            speed=0.1
+            if(up){
+               cP[0]+=Math.cos(cE[0])*speed;
+               if(towards)
+               cP[1]+=Math.sin(cE[1])*speed;
+               cP[2]+=Math.sin(cE[0])*speed;
+            }
+            if(down){
+               cP[0]-=Math.cos(cE[0])*speed;
+               if(towards)
+               cP[1]-=Math.sin(cE[1])*speed;
+               cP[2]-=Math.sin(cE[0])*speed;
+            }
 
-        
+            if(left){
+               cP[0]+=-Math.sin(cE[0])*speed;
+               cP[2]+=Math.cos(cE[0])*speed;
+            }
+
+            if(right){
+               cP[0]-=-Math.sin(cE[0])*speed;
+               cP[2]-=Math.cos(cE[0])*speed;
+            }
+
+            if(turnRight){
+               cE[0]-=Math.PI/20;
+            }
+            if(turnLeft){
+               cE[0]+=Math.PI/20;
+            }
+            if(rising){
+
+                  cP[1]+=speed;
+            }
+            if(falling){
+
+               cP[1]-=speed;
+            }
+
             
+            
+              
+                
             gl.viewport(0.0, 0.0, canvas.width, canvas.height);
             gl.clear(gl.COLOR_BUFFER_BIT);
             gl.uniformMatrix4fv(Pmatrix, false, proj_matrix);
             gl.uniformMatrix4fv(Vmatrix, false, view_matrix);
             gl.uniformMatrix4fv(Mmatrix, false, mov_matrix);
+            gl.uniform3fv(cameraPos,cP);
+            //for now start with just xz rotation
+            var a=cE[0]-Math.PI/2;
+            var b=cE[1];
+            gl.uniformMatrix3fv(cameraEuler,false,[Math.cos(a),0,Math.sin(a),0,1,0,-Math.sin(a),0,Math.cos(a)]);
+            gl.uniformMatrix3fv(cameraEuler2,false,[1,0,0,0,Math.cos(b),-Math.sin(b),0,Math.sin(b),Math.cos(b)]);
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
             gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
 
             window.requestAnimationFrame(animate);
          }
          animate(0);
+
+
+       
+
+document.addEventListener('keydown',press)
+function press(e){
+   `
+  if (e.keyCode === 38 /* up */ || e.keyCode === 87 /* w */ ){
+    up = true
+  }
+  if (e.keyCode === 39 /* right */ || e.keyCode === 68 /* d */){
+    right = true
+  }
+  if (e.keyCode === 40 /* down */ || e.keyCode === 83 /* s */){
+    down = true
+  }
+  if (e.keyCode === 37 /* left */ || e.keyCode === 65 /* a */ ){
+    left = true
+  }
+  `
+  if ( e.keyCode === 87 /* w */ ){
+    up = true
+  }
+  if (e.keyCode === 68 /* d */){
+    right = true
+  }
+  if ( e.keyCode === 83 /* s */){
+    down = true
+  }
+  if ( e.keyCode === 65 /* a */ ){
+    left = true
+  }
+  if ( e.keyCode === 39 ){
+    turnRight=true
+  }
+  if ( e.keyCode === 37 ){
+    turnLeft=true
+  }
+
+  if ( e.keyCode === 38 ){
+    lookUp=true
+  }
+  if ( e.keyCode === 40 ){
+    lookDown=true
+  }
+
+  if ( e.keyCode === 81 ){
+    rising=true
+  }
+  if ( e.keyCode === 69 ){
+    falling=true
+  }
+  if ( e.keyCode === 32 ){
+   towards=true
+  } 
+}
+document.addEventListener('keyup',release)
+function release(e){
+   `
+  if (e.keyCode === 38 /* up */ || e.keyCode === 87 /* w */ ){
+    up = false
+  }
+  if (e.keyCode === 39 /* right */ || e.keyCode === 68 /* d */){
+    right = false
+  }
+  if (e.keyCode === 40 /* down */ || e.keyCode === 83 /* s */){
+    down = false
+  }
+  if (e.keyCode === 37 /* left */ || e.keyCode === 65 /* a */ ){
+    left = false
+  }
+  `
+  if ( e.keyCode === 87 /* w */ ){
+    up = false;
+   
+   }
+  if (e.keyCode === 68 /* d */){
+    right = false
+  }
+  if ( e.keyCode === 83 /* s */){
+    down = false
+  }
+  if ( e.keyCode === 65 /* a */ ){
+    left = false
+  }
+  if ( e.keyCode === 39 ){
+    turnRight=false
+  }
+  if ( e.keyCode === 37 ){
+    turnLeft=false
+  }
+  if ( e.keyCode === 38 ){
+    lookUp=false
+  }
+  if ( e.keyCode === 40 ){
+    lookDown=false
+  }
+  if ( e.keyCode === 81 ){
+    rising=false
+  }
+  if ( e.keyCode === 69 ){
+    falling=false
+  }
+  if ( e.keyCode === 32 ){
+   towards=false
+  } 
+}
+
+
+
+
+
       </script>
    </body>
 </html>
