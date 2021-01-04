@@ -109,7 +109,7 @@ document.addEventListener('pointerlockchange', lockChangeAlert, false);
             const float MARCH_DRAWDIST=500.;
             const int MAX_ITERS=500;
             const float epsilon=0.001;
-            const float normal_epsilon=0.000005;
+            const float normal_epsilon=0.005;
             uniform vec3 cameraPos;
             uniform mat3 cameraEuler;
             uniform mat3 cameraEuler2;
@@ -147,29 +147,22 @@ document.addEventListener('pointerlockchange', lockChangeAlert, false);
             // this algorithm is from centered camera
             vec3 getNormal(vec3 ro,vec3 rd){
                float dist1=march(ro,cameraEuler*cameraEuler2*rd);
-
-               //to the right on screen
-               vec3 rd2=cameraEuler*cameraEuler2*vec3(rd.x+normal_epsilon,rd.y,rd.z);
-               float dist2=march(ro,rd2);
-
-               //upward on screen
-               vec3 rd3=cameraEuler*cameraEuler2*vec3(rd.x,rd.y+normal_epsilon,rd.z);
-               float dist3=march(ro,rd3);
                
-               if(dist1<0.0 || dist2<0.0 || dist3<0.0){
-                  //in case any rays miss or fall through, set normal to 0
-                  //todo, determine experimentally if this is the best approach
-                  return vec3(1.0,0.0,0.0);
-               }
+               if(dist1<0.0)
+                  return vec3(0.0,0.0,0.0);
                
-               //all rays did not fall through
-               vec3 pt1=ro+cameraEuler*cameraEuler2*rd*dist1;
-               vec3 pt2=ro+rd2*dist2;
-               vec3 pt3=ro+rd3*dist3;
+               
 
-               vec3 d1=pt2-pt1;
-               vec3 d2=pt3-pt1;
-               return -1.*normalize(cross(d1,d2));
+               vec3 p=ro+cameraEuler*cameraEuler2*rd*dist1;
+             
+               float centerDistance = sceneDistance(p);
+               float xDistance = sceneDistance(p + vec3(normal_epsilon, 0, 0));
+               float yDistance = sceneDistance(p + vec3(0, normal_epsilon, 0));
+               float zDistance = sceneDistance(p + vec3(0, 0, normal_epsilon));
+               vec3 normal = (vec3(xDistance, yDistance, zDistance) - centerDistance) / normal_epsilon;
+               return normal;
+
+
 
             }
             void main(void) {
