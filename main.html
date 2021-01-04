@@ -159,7 +159,7 @@ document.addEventListener('pointerlockchange', lockChangeAlert, false);
                float xDistance = sceneDistance(p + vec3(normal_epsilon, 0, 0));
                float yDistance = sceneDistance(p + vec3(0, normal_epsilon, 0));
                float zDistance = sceneDistance(p + vec3(0, 0, normal_epsilon));
-               vec3 normal = (vec3(xDistance, yDistance, zDistance) - centerDistance) / normal_epsilon;
+               vec3 normal = normalize((vec3(xDistance, yDistance, zDistance) - centerDistance) / normal_epsilon);
                return normal;
 
 
