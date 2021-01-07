@@ -1,112 +1,119 @@
 <!doctype html>
 <html>
-   <script src="https://code.jquery.com/jquery-3.5.1.min.js" integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
-   <body style="width:100vw;height:100vh;border:none;padding:none">
-      <style>
-        canvas {
-    position: absolute;
-    top:0;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    margin:auto;
-}
+	<script src="https://code.jquery.com/jquery-3.5.1.min.js"
+		integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
 
-      </style>
-      <canvas width = "600" height = "600" id = "my_Canvas"></canvas>
-        <script src="scene.js"></script>
-      <script>
-         //todo: make scene sdf and shading function able to be entered via a textbox
-         //todo: find out what idea you really want to do
-         
-         /*============= Creating a canvas =================*/
-         var canvas = document.getElementById('my_Canvas');
-    canvas.width = document.body.clientWidth; //document.width is obsolete
-    canvas.height = document.body.clientHeight; //document.height is obsolete
-    canvasW = canvas.width;
-    canvasH = canvas.height;
-    canvasAspect=canvasW/canvasH;
+	<body style="width:100vw;height:100vh;border:none;padding:none">
+		<style>
+			canvas {
+				position: absolute;
+				top: 0;
+				bottom: 0;
+				left: 0;
+				right: 0;
+				margin: auto;
+			}
+		</style>
+		<canvas width="600" height="600" id="my_Canvas"></canvas>
+		<script src="scene.js"></script>
+		<script>
+			//todo: make scene sdf and shading function able to be entered via a textbox
+			//todo: find out what idea you really want to do
+			/*============= Creating a canvas =================*/
+			var canvas = document.getElementById('my_Canvas');
+			canvas.width = document.body.clientWidth; //document.width is obsolete
+			canvas.height = document.body.clientHeight; //document.height is obsolete
+			canvasW = canvas.width;
+			canvasH = canvas.height;
+			canvasAspect = canvasW / canvasH;
+			$(window).bind("resize", function () {
+				canvas.width = document.body.clientWidth; //document.width is obsolete
+				canvas.height = document.body.clientHeight; //document.height is obsolete
+				canvasW = canvas.width;
+				canvasH = canvas.height;
+				canvasAspect = canvasW / canvasH;
+			});
+			gl = canvas.getContext('experimental-webgl');
+			
+			//camera eular angles  (yaw: xz, pitch: zy, no roll)
+			var cE = [-Math.PI*3/4, -Math.PI/4];
+			//camera position
+			var zoomDistance=2;
+			var cP=[Math.cos(cE[1])*Math.cos(cE[0]+Math.PI)*zoomDistance,Math.sin(cE[1]+Math.PI)*zoomDistance,Math.cos(cE[1])*Math.sin(cE[0]+Math.PI)*zoomDistance]
+			
 
-    $(window).bind("resize", function(){
-      canvas.width = document.body.clientWidth; //document.width is obsolete
-    canvas.height = document.body.clientHeight; //document.height is obsolete
-    canvasW = canvas.width;
-    canvasH = canvas.height;
-    canvasAspect=canvasW/canvasH;
-});
+			//camera control namespace
+			//unfortunately js namespacing is super clunky
+			//Some global scope variables are still used for compatibility despite this not being fully proper
+			var CameraControl = (
+				function(context){
+					
+					//vars not exported
+					var initialX =0;
+					var initialY =0;
+					var dragging = false;
+					var initialCE = [0,0];
+					var finalX = 0;
+					var finalY = 0;
+					var finalCE = [0,0];
 
 
-         gl = canvas.getContext('experimental-webgl');
-         canvas.onclick = function() {
-  canvas.requestPointerLock();
-}
+					//can be adjusted
+					//speed = angular change/ screen pixel change
+					//later: can finish a system of base speed and multiplier controlled by hot key + scroll wheel
+					//similar for zoom speed
+					var baseSpeedXZ = Math.PI*2/200; //denominator = number of pixels dragged to complete a full angular rotation
+					var baseSpeedZY = baseSpeedXZ*canvasAspect; //scale angular change by canvas aspect
+				
+					$(context.canvas).mousedown((e)=>{
+						initialX=e.pageX;
+						initialY=e.pageY;
+						initialCE=cE.slice();
+						dragging=true;
+					})
 
-var cP=[1.2,1.2,-1.2];
-         var cE=[Math.PI/2+Math.PI/4,0-Math.PI/6];
-function canvasLoop(e) {
-  var movementX = e.movementX ||
-      e.mozMovementX          ||
-      e.webkitMovementX       ||
-      0;
+					$(context.canvas).mousemove((e)=>{
+						if(dragging){
+							finalX=e.pageX;
+							finalY=e.pageY;
+							var deltaX=finalX-initialX;
+							deltaX=-deltaX							//initial testing reveals that  should also reverse deltaX for some reason
+							var deltaY=initialY-finalY; //account for the flipped nature of the y coordinate in computer systems
+							finalCE[0]=initialCE[0]+deltaX*baseSpeedXZ;
+							finalCE[1]=initialCE[1]+deltaY*baseSpeedZY;
+							
+							//set the global cE variable, kinda jank
+							cE=finalCE.slice()
 
-  var movementY = e.movementY ||
-      e.mozMovementY      ||
-      e.webkitMovementY   ||
-      0;
+							//perform the orbit
+							cP=[Math.cos(cE[1])*Math.cos(cE[0]+Math.PI)*zoomDistance,Math.sin(cE[1]+Math.PI)*zoomDistance,Math.cos(cE[1])*Math.sin(cE[0]+Math.PI)*zoomDistance]
+						}
+					})
 
-      cE[0]-=movementX*Math.PI/60;
-      if(Math.abs(cE[1]-movementY*Math.PI/60)<Math.PI/2*1.0)
-      cE[1]-=movementY*Math.PI/60;
+					$(context.canvas).mouseup((e)=>{
+						dragging=false;
+					})
+
+				}
+			)({canvas:canvas})
 
 
-}
-function lockChangeAlert() {
-  if(document.pointerLockElement === canvas) {
-    console.log('The pointer lock status is now locked');
-    document.addEventListener("mousemove", canvasLoop, false);
-  } else {
-    console.log('The pointer lock status is now unlocked');  
-    document.removeEventListener("mousemove", canvasLoop, false);
-  }
-}
-document.addEventListener('pointerlockchange', lockChangeAlert, false);
-         var up = false,
-    right = false,
-    down = false,
-    left = false;
-    var turnLeft=false;
-    var turnRight=false;
-    var lookUp=false;
-    var lookDown=false;
-    var rising=false;
-    var falling=false;
-    var towards=false;
 
-         /*============ Defining and storing the geometry =========*/
-
-         var vertices = [
-            -1,-1,-1, 1,-1,-1, 1, 1,-1, -1, 1,-1,
-           
-         ];
-
-         var indices = [
-            0,1,2, 0,2,3, 4,5,6, 4,6,7,
-   
-         ];
-
-         // Create and store data into vertex buffer
-         var vertex_buffer = gl.createBuffer ();
-         gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-
-         // Create and store data into index buffer
-         var index_buffer = gl.createBuffer ();
-         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
-         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-
-         /*=================== Shaders =========================*/
-
-         var vertCode = `attribute vec3 position;
+			/*============ Defining and storing the geometry =========*/
+			var vertices = [-1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1, ];
+			var indices = [
+				0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7,
+			];
+			// Create and store data into vertex buffer
+			var vertex_buffer = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+			// Create and store data into index buffer
+			var index_buffer = gl.createBuffer();
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
+			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+			/*=================== Shaders =========================*/
+			var vertCode = `attribute vec3 position;
             uniform mat4 Pmatrix;
             uniform mat4 Vmatrix;
             uniform mat4 Mmatrix;
@@ -116,8 +123,7 @@ document.addEventListener('pointerlockchange', lockChangeAlert, false);
                gl_Position = Pmatrix*Vmatrix*Mmatrix*vec4(position, 1.);
                uv=position.xy;
             }`;
-
-         var fragCode = `
+			var fragCode = `
          #define PI 3.1415926538
          precision mediump float;
             varying vec3 vColor;
@@ -130,11 +136,12 @@ document.addEventListener('pointerlockchange', lockChangeAlert, false);
             uniform mat3 cameraEuler;
             uniform mat3 cameraEuler2;
             uniform float aspect;
-            
+            uniform float elapsedTime;
+
+			` + auxillaryFunctions + `
+
             float sceneDistance(vec3 p){
-            `
-               +sceneDistanceScript+
-             `  
+            ` + sceneDistanceScript + `  
             }
             
             float march(vec3 ro, vec3 rd){
@@ -153,8 +160,7 @@ document.addEventListener('pointerlockchange', lockChangeAlert, false);
                return -1.;
             }
             vec3 getColor(vec3 ro, vec3 rd, vec3 pt, vec3 n){
-               `+shadingScript+
-               `
+               ` + shadingScript + `
             }
             // note, camera movement will require coordinate transformations
             // this algorithm is from centered camera
@@ -194,251 +200,73 @@ document.addEventListener('pointerlockchange', lockChangeAlert, false);
                   gl_FragColor=vec4(getColor(ro,rd,pt,n),1.0);
                }
             }`;
+			var vertShader = gl.createShader(gl.VERTEX_SHADER);
+			gl.shaderSource(vertShader, vertCode);
+			gl.compileShader(vertShader);
+			var fragShader = gl.createShader(gl.FRAGMENT_SHADER);
+			gl.shaderSource(fragShader, fragCode);
+			gl.compileShader(fragShader);
+			var shaderProgram = gl.createProgram();
+			gl.attachShader(shaderProgram, vertShader);
+			gl.attachShader(shaderProgram, fragShader);
+			gl.linkProgram(shaderProgram);
+			var compiled = gl.getShaderParameter(vertShader, gl.COMPILE_STATUS);
+			console.log('Shader compiled successfully: ' + compiled);
+			var compilationLog = gl.getShaderInfoLog(vertShader);
+			console.log('Shader compiler log: ' + compilationLog);
+			var compiled = gl.getShaderParameter(fragShader, gl.COMPILE_STATUS);
+			console.log('Shader compiled successfully: ' + compiled);
+			var compilationLog = gl.getShaderInfoLog(fragShader);
+			console.log('Shader compiler log: ' + compilationLog);
+			/* ====== Associating attributes to vertex shader =====*/
+			var Pmatrix = gl.getUniformLocation(shaderProgram, "Pmatrix");
+			var Vmatrix = gl.getUniformLocation(shaderProgram, "Vmatrix");
+			var Mmatrix = gl.getUniformLocation(shaderProgram, "Mmatrix");
+			gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
+			var position = gl.getAttribLocation(shaderProgram, "position");
+			gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 0, 0);
+			// Position
+			gl.enableVertexAttribArray(position);
+			gl.useProgram(shaderProgram);
+			var cameraPos = gl.getUniformLocation(shaderProgram, 'cameraPos');
+			var cameraEuler = gl.getUniformLocation(shaderProgram, 'cameraEuler');
+			var cameraEuler2 = gl.getUniformLocation(shaderProgram, 'cameraEuler2');
+			var aspect = gl.getUniformLocation(shaderProgram, 'aspect');
+			var elapsedTime = gl.getUniformLocation(shaderProgram, 'elapsedTime');
+			/*==================== MATRIX =====================*/
+			var proj_matrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+			var mov_matrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+			var view_matrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+			/*==================== Rotation ====================*/
+			/*================= Drawing ===========================*/
+			var time_old = 0;
+			gl.clearColor(0, 0, 0, 1);
+			var animate = function (time) {
+				var dt = time - time_old;
+				time_old = time;
+				gl.viewport(0.0, 0.0, canvas.width, canvas.height);
+				gl.clear(gl.COLOR_BUFFER_BIT);
+				gl.uniformMatrix4fv(Pmatrix, false, proj_matrix);
+				gl.uniformMatrix4fv(Vmatrix, false, view_matrix);
+				gl.uniformMatrix4fv(Mmatrix, false, mov_matrix);
+				gl.uniform3fv(cameraPos, cP);
+				gl.uniform1f(aspect, canvasAspect);
+				gl.uniform1f(elapsedTime, time);
+				//for now start with just xz rotation
+				var a = cE[0] - Math.PI / 2;
+				var b = cE[1];
+				gl.uniformMatrix3fv(cameraEuler, false, [Math.cos(a), 0, Math.sin(a),
+					0,
+					1, 0, -Math.sin(a), 0, Math.cos(a)
+				]);
+				gl.uniformMatrix3fv(cameraEuler2, false, [1, 0, 0, 0, Math.cos(b), -Math.sin(b), 0, Math.sin(b), Math.cos(
+					b)]);
+				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
+				gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+				window.requestAnimationFrame(animate);
+			}
+			animate(0);
+		</script>
+	</body>
 
-         var vertShader = gl.createShader(gl.VERTEX_SHADER);
-         gl.shaderSource(vertShader, vertCode);
-         gl.compileShader(vertShader);
-
-         var fragShader = gl.createShader(gl.FRAGMENT_SHADER);
-         gl.shaderSource(fragShader, fragCode);
-         gl.compileShader(fragShader);
-
-         var shaderProgram = gl.createProgram();
-         gl.attachShader(shaderProgram, vertShader);
-         gl.attachShader(shaderProgram, fragShader);
-         gl.linkProgram(shaderProgram);
-
-         var compiled = gl.getShaderParameter(vertShader, gl.COMPILE_STATUS);
-         console.log('Shader compiled successfully: ' + compiled);
-         var compilationLog = gl.getShaderInfoLog(vertShader);
-         console.log('Shader compiler log: ' + compilationLog);
-
-         var compiled = gl.getShaderParameter(fragShader, gl.COMPILE_STATUS);
-         console.log('Shader compiled successfully: ' + compiled);
-         var compilationLog = gl.getShaderInfoLog(fragShader);
-         console.log('Shader compiler log: ' + compilationLog);
-
-         /* ====== Associating attributes to vertex shader =====*/
-         var Pmatrix = gl.getUniformLocation(shaderProgram, "Pmatrix");
-         var Vmatrix = gl.getUniformLocation(shaderProgram, "Vmatrix");
-         var Mmatrix = gl.getUniformLocation(shaderProgram, "Mmatrix");
-
-         gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-         var position = gl.getAttribLocation(shaderProgram, "position");
-         gl.vertexAttribPointer(position, 3, gl.FLOAT, false,0,0) ;
-
-         // Position
-         gl.enableVertexAttribArray(position);
-   
-
-    
-         gl.useProgram(shaderProgram);
-
-
-         var cameraPos=gl.getUniformLocation(shaderProgram,'cameraPos');
-         var cameraEuler=gl.getUniformLocation(shaderProgram,'cameraEuler');
-         var cameraEuler2=gl.getUniformLocation(shaderProgram,'cameraEuler2');
-         var aspect=gl.getUniformLocation(shaderProgram,'aspect');
-        
-         /*==================== MATRIX =====================*/
-
-
-         var proj_matrix =[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-
-         var mov_matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-         var view_matrix = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-
-       
-
-         /*==================== Rotation ====================*/
-
-         
-
-         /*================= Drawing ===========================*/
-         var time_old = 0;
-
-         
-         gl.clearColor(0,0,0,1);
-         var animate = function(time) {
-
-            var dt = time-time_old;
-
-            time_old = time;
-            speed=0.1
-            if(up){
-               cP[0]+=Math.cos(cE[0])*speed;
-               if(towards)
-               cP[1]+=Math.sin(cE[1])*speed;
-               cP[2]+=Math.sin(cE[0])*speed;
-            }
-            if(down){
-               cP[0]-=Math.cos(cE[0])*speed;
-               if(towards)
-               cP[1]-=Math.sin(cE[1])*speed;
-               cP[2]-=Math.sin(cE[0])*speed;
-            }
-
-            if(left){
-               cP[0]+=-Math.sin(cE[0])*speed;
-               cP[2]+=Math.cos(cE[0])*speed;
-            }
-
-            if(right){
-               cP[0]-=-Math.sin(cE[0])*speed;
-               cP[2]-=Math.cos(cE[0])*speed;
-            }
-
-            if(turnRight){
-               cE[0]-=Math.PI/20;
-            }
-            if(turnLeft){
-               cE[0]+=Math.PI/20;
-            }
-            if(rising){
-
-                  cP[1]+=speed;
-            }
-            if(falling){
-
-               cP[1]-=speed;
-               if(cP[1]<0.3)
-               cP[1]=0.3
-            }
-
-            
-            
-              
-                
-            gl.viewport(0.0, 0.0, canvas.width, canvas.height);
-            gl.clear(gl.COLOR_BUFFER_BIT);
-            gl.uniformMatrix4fv(Pmatrix, false, proj_matrix);
-            gl.uniformMatrix4fv(Vmatrix, false, view_matrix);
-            gl.uniformMatrix4fv(Mmatrix, false, mov_matrix);
-            gl.uniform3fv(cameraPos,cP);
-            gl.uniform1f(aspect,canvasAspect);
-            //for now start with just xz rotation
-            var a=cE[0]-Math.PI/2;
-            var b=cE[1];
-            gl.uniformMatrix3fv(cameraEuler,false,[Math.cos(a),0,Math.sin(a),0,1,0,-Math.sin(a),0,Math.cos(a)]);
-            gl.uniformMatrix3fv(cameraEuler2,false,[1,0,0,0,Math.cos(b),-Math.sin(b),0,Math.sin(b),Math.cos(b)]);
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_buffer);
-            gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
-
-            window.requestAnimationFrame(animate);
-         }
-         animate(0);
-
-
-       
-
-document.addEventListener('keydown',press)
-function press(e){
-   `
-  if (e.keyCode === 38 /* up */ || e.keyCode === 87 /* w */ ){
-    up = true
-  }
-  if (e.keyCode === 39 /* right */ || e.keyCode === 68 /* d */){
-    right = true
-  }
-  if (e.keyCode === 40 /* down */ || e.keyCode === 83 /* s */){
-    down = true
-  }
-  if (e.keyCode === 37 /* left */ || e.keyCode === 65 /* a */ ){
-    left = true
-  }
-  `
-  if ( e.keyCode === 87 /* w */ ){
-    up = true
-  }
-  if (e.keyCode === 68 /* d */){
-    right = true
-  }
-  if ( e.keyCode === 83 /* s */){
-    down = true
-  }
-  if ( e.keyCode === 65 /* a */ ){
-    left = true
-  }
-  if ( e.keyCode === 39 ){
-    turnRight=true
-  }
-  if ( e.keyCode === 37 ){
-    turnLeft=true
-  }
-
-  if ( e.keyCode === 38 ){
-    lookUp=true
-  }
-  if ( e.keyCode === 40 ){
-    lookDown=true
-  }
-
-  if ( e.keyCode === 81 ){
-    rising=true
-  }
-  if ( e.keyCode === 69 ){
-    falling=true
-  }
-  if ( e.keyCode === 32 ){
-   towards=true
-  } 
-}
-document.addEventListener('keyup',release)
-function release(e){
-   `
-  if (e.keyCode === 38 /* up */ || e.keyCode === 87 /* w */ ){
-    up = false
-  }
-  if (e.keyCode === 39 /* right */ || e.keyCode === 68 /* d */){
-    right = false
-  }
-  if (e.keyCode === 40 /* down */ || e.keyCode === 83 /* s */){
-    down = false
-  }
-  if (e.keyCode === 37 /* left */ || e.keyCode === 65 /* a */ ){
-    left = false
-  }
-  `
-  if ( e.keyCode === 87 /* w */ ){
-    up = false;
-   
-   }
-  if (e.keyCode === 68 /* d */){
-    right = false
-  }
-  if ( e.keyCode === 83 /* s */){
-    down = false
-  }
-  if ( e.keyCode === 65 /* a */ ){
-    left = false
-  }
-  if ( e.keyCode === 39 ){
-    turnRight=false
-  }
-  if ( e.keyCode === 37 ){
-    turnLeft=false
-  }
-  if ( e.keyCode === 38 ){
-    lookUp=false
-  }
-  if ( e.keyCode === 40 ){
-    lookDown=false
-  }
-  if ( e.keyCode === 81 ){
-    rising=false
-  }
-  if ( e.keyCode === 69 ){
-    falling=false
-  }
-  if ( e.keyCode === 32 ){
-   towards=false
-  } 
-}
-
-
-
-
-
-      </script>
-   </body>
 </html>
