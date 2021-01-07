@@ -1,4 +1,7 @@
 var auxillaryFunctions=`
+int test(){
+	return 0;
+}
 `;
 
 
