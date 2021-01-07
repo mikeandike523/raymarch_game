@@ -6,7 +6,7 @@ int test(){
 
 
 var sceneDistanceScript=`
-    vec3 pa=vec3(p.x,p.y,p.z);
+    vec3 pa=vec3(pt.x,pt.y,pt.z);
     vec3 q = abs(pa) - vec3(0.5,0.5,0.5);
     float dist1= length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
   return dist1;
