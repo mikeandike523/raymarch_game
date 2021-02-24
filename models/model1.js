@@ -10,15 +10,20 @@ float brick(vec3 v,float s){
 
 
 
+
 `;
 
 
 var sceneDistanceScript=`
 
-return length(pt)-0.5;
+vec3 b= vec3(1.,1.,1.);
+vec3 q = abs(pt) - b;
+float boundingBox= length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0); 
+float cylinder = length(pt.xz)-0.5*sin(pt.y)*sin(pt.y)-0.15;
+float ball = length(pt-vec3(0.,1.1,0.))-0.3;
+
+return min(max(cylinder,boundingBox),ball)/20.;
 `;
-
 var shadingScript=`
-
-	return vec3(dot(n,vec3(0.,1.,0.)));
+	return abs(n);
 `;
